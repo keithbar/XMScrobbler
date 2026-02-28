@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Manual Scrobble Test</title>
+</head>
+<body>
+  <h1>Test Scrobble</h1>
+
+  <h2 id="authStatus">Not logged in.</h2>
+  <button id="loginBtn">Login with Last.fm</button>
+
+  <script>
+    const loginBtn = document.getElementById('loginBtn');
+
+    loginBtn.addEventListener('click', () => {
+        window.location.href = '/auth/login';
+    });
+
+    async function checkAuth(){
+        const response = await fetch('/api/auth-status');
+        const data = await response.json();
+
+        const statusEl = document.getElementById('authStatus');
+
+        if(data.loggedIn){
+            statusEl.textContent = `Logged in as ${data.username}`;
+            loginBtn.style.display = 'none';
+        }
+        else{
+            statusEl.textContent = 'Not logged in.';
+        }
+    }
+
+    checkAuth();
+  </script>
+
+  <form id="scrobbleForm">
+    <label>
+      Artist:
+      <input type="text" id="artist" required />
+    </label>
+    <br><br>
+
+    <label>
+      Track:
+      <input type="text" id="track" required />
+    </label>
+    <br><br>
+
+    <button type="submit">Submit</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('scrobbleForm');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const artist = document.getElementById('artist').value;
+      const track = document.getElementById('track').value;
+
+      const response = await fetch('/scrobble', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ artist, track })
+      });
+
+      const data = await response.json();
+      console.log(data);
+      alert('Submitted! Check server console.');
+    });
+  </script>
+</body>
+</html>
