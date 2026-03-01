@@ -2,18 +2,9 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
-const crypto = require('crypto');
 const session = require('express-session');
 
-function createSignature(params){
-    const sortedKeys = Object.keys(params).sort();
-
-    const signatureBase = sortedKeys
-        .map(key => key + params[key])
-        .join('') + process.env.LASTFM_API_SECRET;
-
-    return crypto.createHash('md5').update(signatureBase).digest('hex');
-}
+const { getSession, scrobbleTrack } = require('./services/lastfmService');
 
 const app = express();
 
@@ -27,7 +18,7 @@ app.use(session({
 }));
 
 app.get('/api/auth-status', (req, res) => {
-    if(req.session && req.session.username){
+    if(req.session?.username){
         res.json({ 
             loggedIn: true, 
             username: req.session.username 
@@ -47,28 +38,8 @@ app.get('/auth/login', (req, res) => {
 
 app.get('/auth/callback', async (req, res) => {
     const { token } = req.query;
-    const params = {
-        method: 'auth.getSession',
-        api_key: process.env.LASTFM_API_KEY,
-        token: token
-    };
-    const api_sig = createSignature(params);
-    const url = 'https://ws.audioscrobbler.com/2.0/';
+    const data = await getSession(token);
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'XMScrobbler/1.0 (krpbarber@gmail.com)'
-        },
-        body: new URLSearchParams({
-            ...params,
-            api_sig,
-            format: 'json'
-        })
-    });
-
-    const data = await response.json();
     if(data.session){
         req.session.username = data.session.name;
         req.session.sessionKey = data.session.key;
@@ -83,33 +54,11 @@ app.post('/scrobble', async (req, res) => {
     }
 
     const { artist, track } = req.body;
-    const timestamp = Math.floor(Date.now() / 1000);
-
-    const params = {
-        method: 'track.scrobble',
+    const data = await scrobbleTrack({
         artist,
         track,
-        timestamp,
-        api_key: process.env.LASTFM_API_KEY,
-        sk: req.session.sessionKey
-    };
-
-    const api_sig = createSignature(params);
-
-    const response = await fetch('https://ws.audioscrobbler.com/2.0/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'XMScrobbler/1.0 (krpbarber@gmail.com)'
-        },
-        body: new URLSearchParams({
-            ...params,
-            api_sig,
-            format: 'json'
-        })
+        sessionKey: req.session.sessionKey
     });
-
-    const data = await response.json();
     res.json(data);
 })
 
