@@ -57,7 +57,10 @@ app.get('/auth/callback', async (req, res) => {
 
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'XMScrobbler/1.0 (krpbarber@gmail.com)'
+        },
         body: new URLSearchParams({
             ...params,
             api_sig,
@@ -73,20 +76,6 @@ app.get('/auth/callback', async (req, res) => {
 
     res.redirect('/');
 })
-
-app.post('/api/test-scrobble', (req, res) => {
-    const { artist, track, secondsAgo } = req.body;
-    const timestamp = Math.floor(Date.now() / 1000) - Number(secondsAgo);
-    const timestampReadable = new Date(timestamp * 1000);
-
-    console.log('Received scrobble test:');
-    console.log({ artist, track, timestampReadable });
-
-    res.json({
-        success: true,
-        calculatedTimestamp: timestamp
-    });
-});
 
 app.post('/scrobble', async (req, res) => {
     if(!req.session.sessionKey){
@@ -109,7 +98,10 @@ app.post('/scrobble', async (req, res) => {
 
     const response = await fetch('https://ws.audioscrobbler.com/2.0/', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'User-Agent': 'XMScrobbler/1.0 (krpbarber@gmail.com)'
+        },
         body: new URLSearchParams({
             ...params,
             api_sig,
