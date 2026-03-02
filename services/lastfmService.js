@@ -26,16 +26,14 @@ async function getSession(token){
     return response.json();
 }
 
-async function scrobbleTrack({ artist, track, sessionKey }){
-    const timestamp = Math.floor(Date.now() / 1000);
-
+async function scrobbleTrack(userSessionKey, track){
     const params = {
         method: 'track.scrobble',
-        artist,
-        track,
-        timestamp,
+        artist: track.artist,
+        track: track.title,
+        timestamp: track.timestamp,
         api_key: process.env.LASTFM_API_KEY,
-        sk: sessionKey
+        sk: userSessionKey
     };
 
     const api_sig = createSignature(params);

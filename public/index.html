@@ -9,32 +9,9 @@
   <h2 id="authStatus">Not logged in.</h2>
   <button id="loginBtn">Login with Last.fm</button>
 
-  <script>
-    const loginBtn = document.getElementById('loginBtn');
+  <br><br>
 
-    loginBtn.addEventListener('click', () => {
-        window.location.href = '/auth/login';
-    });
-
-    async function checkAuth(){
-        const response = await fetch('/api/auth-status');
-        const data = await response.json();
-
-        const statusEl = document.getElementById('authStatus');
-
-        if(data.loggedIn){
-            statusEl.textContent = `Logged in as ${data.username}`;
-            loginBtn.style.display = 'none';
-        }
-        else{
-            statusEl.textContent = 'Not logged in.';
-        }
-    }
-
-    checkAuth();
-  </script>
-
-  <form id="scrobbleForm">
+  <form id="scrobbleForm" style="display: none;">
     <label>
       Artist:
       <input type="text" id="artist" required />
@@ -50,27 +27,132 @@
     <button type="submit">Submit</button>
   </form>
 
+  <br><br>
+
+  <div id="channelControls" style="display: none;">
+    <select id="channel"></select>
+    <button id="channelBtn">Start Scrobbling</button>
+  </div>
+  
   <script>
-    const form = document.getElementById('scrobbleForm');
+    // State
+    let isScrobbling = false;
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
+    // Elements
+    const authStatus = document.getElementById('authStatus');
+    const loginBtn = document.getElementById('loginBtn');
+    const manualScrobbleForm = document.getElementById('scrobbleForm');
+    const channelControls = document.getElementById('channelControls');
+    const channelSelect = document.getElementById('channel');
+    const channelBtn = document.getElementById('channelBtn');
 
-      const artist = document.getElementById('artist').value;
-      const track = document.getElementById('track').value;
+    // Init
+    init();
 
-      const response = await fetch('/scrobble', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ artist, track })
+    // Functions
+    async function init(){
+      await checkAuth();
+
+      manualScrobbleForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const artist = document.getElementById('artist').value;
+        const track = document.getElementById('track').value;
+
+        const response = await fetch('/scrobble', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ artist, track })
+        });
+
+        const data = await response.json();
+        console.log(data);
+        alert('Submitted! Check server console.');
       });
 
+      channelBtn.addEventListener('click', async () => {
+        const channelId = channelSelect.value;
+        if(!channelId){
+          alert('Select a channel first');
+          return;
+        }
+
+        if(!isScrobbling){
+          await fetch('/api/scrobble/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channelId })
+          });
+
+          setScrobblingState(true);
+        }
+        else{
+          await fetch('/api/scrobble/stop', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channelId })
+          });
+
+          setScrobblingState(false);
+        }
+
+      });
+    }
+
+    function setScrobblingState(state){
+      isScrobbling = state;
+      channelBtn.textContent = state ? 'Stop Scrobbling' : 'Start Scrobbling';
+      channelSelect.disabled = state;
+    }
+
+    async function loadChannels(){
+      const response = await fetch('/api/channels');
+      const channels = await response.json();
+
+      channelSelect.innerHTML = '';
+
+      channels.forEach(channel => {
+        const option = document.createElement('option');
+        option.value = channel.deeplink;
+        option.textContent = `${channel.number} - ${channel.name}`;
+        channelSelect.appendChild(option);
+      });
+    }
+
+    function handleLogin(){
+      window.location.href = '/auth/login';
+    }
+
+    async function handleLogout(){
+      await fetch('/auth/logout', { method: 'POST' });
+      setScrobblingState(false);
+      await checkAuth();
+    }
+    
+    async function checkAuth(){
+      const response = await fetch('/api/auth-status');
       const data = await response.json();
-      console.log(data);
-      alert('Submitted! Check server console.');
-    });
-  </script>
+
+      if(data.loggedIn){
+        authStatus.textContent = `Logged in as ${data.username}`;
+        loginBtn.textContent = 'Logout';
+        loginBtn.onclick = handleLogout;
+        channelControls.style.display = 'block';
+        manualScrobbleForm.style.display = 'block';
+
+        await loadChannels();
+      }
+      else{
+        authStatus.textContent = 'Not logged in.';
+        loginBtn.textContent = 'Login with Last.fm';
+        loginBtn.onclick = handleLogin;
+        channelControls.style.display = 'none';
+        manualScrobbleForm.style.display = 'none';
+      }
+    }
+</script>
+
 </body>
 </html>
