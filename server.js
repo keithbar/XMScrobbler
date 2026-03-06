@@ -8,7 +8,7 @@ const { getSession, scrobbleTrack } = require('./services/lastfmService');
 const { fetchChannels } = require('./services/xmplaylistService');
 const { activeChannels, startPolling } = require('./services/pollingService');
 
-let channels = [];
+let channels = null;
 
 const app = express();
 
@@ -36,7 +36,12 @@ function requireAuth(req, res, next){
 // Route: /api/channels
 // Response contains the currently available XM stations
 app.get('/api/channels', (req, res) => {
-    res.json(channels);
+    res.json(
+        [...channels.entries()].map(([deeplink, info]) => ({
+            deeplink,
+            ...info
+        }))
+    );
 });
 
 // Route: /api/auth-status
@@ -60,9 +65,21 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const { channelId } = req.body;
     const sessionKey = req.session.sessionKey;
 
-    for(const [channelId, channel] of activeChannels){
+    if(!channelId){
+        return res.status(400).json({ error: 'channelId required' });
+    }
+
+    if(!channels.has(channelId)){
+        return res.status(400).json({ error: 'Invalid channelId' });
+    }
+
+    for(const [id, channel] of activeChannels){
         if(channel.activeUsers.has(sessionKey)){
             channel.activeUsers.delete(sessionKey);
+
+            if(channel.activeUsers.size === 0){
+                activeChannels.delete(id);
+            }
         }
     }
 
@@ -70,10 +87,6 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const timeoutHours = allowedHours.includes(Number(req.body.timeoutHours))
         ? Number(req.body.timeoutHours)
         : 1;
-
-    if(!channelId){
-        return res.status(400).json({ error: 'channelId required' });
-    }
 
     const now = Math.floor(Date.now() / 1000);
     const stopAt = now + (timeoutHours * 3600);
@@ -115,6 +128,14 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
 app.post('/api/scrobble/stop', requireAuth, (req, res) => {
     const { channelId } = req.body;
     const sessionKey = req.session.sessionKey;
+
+    if(!channelId){
+        return res.status(400).json({ error: 'channelId required' });
+    }
+
+    if(!channels.has(channelId)){
+        return res.status(400).json({ error: 'Invalid channelId' });
+    }
 
     const channel = activeChannels.get(channelId);
 
@@ -212,7 +233,7 @@ app.post('/scrobble', requireAuth, async (req, res) => {
 async function startServer(){
     try{
         channels = await fetchChannels();
-        console.log(`Loaded ${channels.length} channels`);
+        console.log(`Loaded ${channels.size} channels`);
 
         app.listen(3000, () => {
             console.log('Server running at http://localhost:3000');

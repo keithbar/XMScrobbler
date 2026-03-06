@@ -3,7 +3,15 @@ const BASE_URL = 'https://xmplaylist.com/api/';
 async function fetchChannels(){
     const response = await fetch(`${BASE_URL}station`);
     const data = await response.json();
-    return data.results;
+    return new Map(
+        data.results.map(channel => [
+            channel.deeplink,
+            {
+                number: channel.number,
+                name: channel.name
+            }
+        ])
+    );
 }
 
 async function fetchRecentTracks(channelId){

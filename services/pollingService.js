@@ -3,7 +3,7 @@ const { fetchRecentTracks } = require('./xmplaylistService');
 const { scrobbleTrack } = require('./lastfmService');
 
 const RATE_LIMIT_DELAY = 2.1;
-const MIN_POLL_INTERVAL = 0.5 * 60;
+const MIN_POLL_INTERVAL = 2 * 60;
 
 const activeChannels = new Map();
 // key: channelId
