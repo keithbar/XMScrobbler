@@ -60,9 +60,17 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const { channelId } = req.body;
     const sessionKey = req.session.sessionKey;
 
+    const allowedHours = [1, 2, 4, 8, 12];
+    const timeoutHours = allowedHours.includes(Number(req.body.timeoutHours))
+        ? Number(req.body.timeoutHours)
+        : 1;
+
     if(!channelId){
         return res.status(400).json({ error: 'channelId required' });
     }
+
+    const now = Math.floor(Date.now() / 1000);
+    const stopAt = now + (timeoutHours * 3600);
 
     let channel = activeChannels.get(channelId);
 
@@ -77,6 +85,7 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
         activeUsers.set(sessionKey, {
             channelId: channelId,
             startedAt: Date.now() / 1000,
+            stopAt: stopAt,
             lastScrobbled: 0
         })
     }
@@ -86,7 +95,10 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     console.log("Channel started:", channelId);
     console.log("Active channels:", [...activeChannels.keys()]);
 
-    res.json({ success: true });
+    res.json({ 
+        success: true,
+        stopAt
+    });
 });
 
 // Route: /api/scrobble/stop
@@ -111,6 +123,23 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
     activeUsers.delete(sessionKey);
 
     res.json({ success: true });
+})
+
+// Route: /api/scrobble/status
+// Return the current user's scrobbling status to the frontend.
+app.get('/api/scrobble/status', requireAuth, (req, res) => {
+    const sessionKey = req.session.sessionKey;
+    const userState = activeUsers.get(sessionKey);
+
+    if(!userState){
+        return res.json({ active: false });
+    }
+
+    res.json({
+        active: true,
+        channelId: userState.channelId,
+        stopAt: userState.stopAt
+    })
 })
 
 // Route: /auth/login
