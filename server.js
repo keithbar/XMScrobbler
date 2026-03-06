@@ -235,6 +235,16 @@ async function startServer(){
         channels = await fetchChannels();
         console.log(`Loaded ${channels.size} channels`);
 
+        setInterval(async () => {
+            try{
+                channels = await fetchChannels();
+                console.log(`Channel list refreshed, loaded ${channels.size} channels`);
+            }
+            catch(err){
+                console.error('Failed to refresh channels:', err);
+            }
+        }, 60 * 60 * 1000);
+
         app.listen(3000, () => {
             console.log('Server running at http://localhost:3000');
             startPolling();
