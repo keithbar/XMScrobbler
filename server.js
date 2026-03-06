@@ -6,7 +6,7 @@ const session = require('express-session');
 
 const { getSession, scrobbleTrack } = require('./services/lastfmService');
 const { fetchChannels } = require('./services/xmplaylistService');
-const { activeChannels, activeUsers, startPolling } = require('./services/pollingService');
+const { activeChannels, startPolling } = require('./services/pollingService');
 
 let channels = [];
 
@@ -60,6 +60,12 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const { channelId } = req.body;
     const sessionKey = req.session.sessionKey;
 
+    for(const [channelId, channel] of activeChannels){
+        if(channel.activeUsers.has(sessionKey)){
+            channel.activeUsers.delete(sessionKey);
+        }
+    }
+
     const allowedHours = [1, 2, 4, 8, 12];
     const timeoutHours = allowedHours.includes(Number(req.body.timeoutHours))
         ? Number(req.body.timeoutHours)
@@ -76,24 +82,27 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
 
     if(!channel){
         channel = {
-            listeners: 0,
             lastPolled: 0,
-            recentTracks: []
+            recentTracks: [],
+            activeUsers: new Map()
         };
 
         activeChannels.set(channelId, channel);
-        activeUsers.set(sessionKey, {
-            channelId: channelId,
-            startedAt: Date.now() / 1000,
-            stopAt: stopAt,
-            lastScrobbled: 0
-        })
     }
 
-    channel.listeners += 1;
+    channel.activeUsers.set(sessionKey, {
+        startedAt: now,
+        stopAt: stopAt,
+        lastScrobbled: 0
+    })
 
     console.log("Channel started:", channelId);
-    console.log("Active channels:", [...activeChannels.keys()]);
+    console.log("Active channels:", 
+        [...activeChannels.entries()].map(([id, channel]) => ({
+            channelId: id,
+            listeners: channel.activeUsers.size
+        }))
+    );
 
     res.json({ 
         success: true,
@@ -113,14 +122,12 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
         return res.json({ success: true });
     }
 
-    channel.listeners -= 1;
+    channel.activeUsers.delete(sessionKey);
 
-    if(channel.listeners <= 0){
+    if(channel.activeUsers.size === 0){
         activeChannels.delete(channelId);
         console.log('Channel removed:', channelId);
     }
-
-    activeUsers.delete(sessionKey);
 
     res.json({ success: true });
 })
@@ -129,17 +136,19 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
 // Return the current user's scrobbling status to the frontend.
 app.get('/api/scrobble/status', requireAuth, (req, res) => {
     const sessionKey = req.session.sessionKey;
-    const userState = activeUsers.get(sessionKey);
-
-    if(!userState){
-        return res.json({ active: false });
+    
+    for(const [channelId, channel] of activeChannels){
+        const userState = channel.activeUsers.get(sessionKey);
+        if(userState){
+            return res.json({
+                active: true,
+                channelId: channelId,
+                stopAt: userState.stopAt
+            });
+        }
     }
 
-    res.json({
-        active: true,
-        channelId: userState.channelId,
-        stopAt: userState.stopAt
-    })
+    res.json({ active: false });
 })
 
 // Route: /auth/login
