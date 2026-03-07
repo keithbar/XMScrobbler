@@ -7,6 +7,7 @@ const session = require('express-session');
 const { getSession, scrobbleTrack } = require('./services/lastfmService');
 const { fetchChannels } = require('./services/xmplaylistService');
 const { activeChannels, startPolling } = require('./services/pollingService');
+const { debugLog } = require('./utils/logger');
 
 let channels = null;
 
@@ -22,6 +23,17 @@ app.use(session({
 }));
 
 function requireAuth(req, res, next){
+    if(process.env.NODE_ENV === 'test'){
+        if(!req.session){
+            req.session = {};
+        }
+
+        if(req.headers['x-test-user']){
+            req.session.username = req.headers['x-test-user'];
+            req.session.sessionKey = req.headers['x-test-user'];
+        }
+    }
+
     if(!req.session || !req.session.username){
         return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -109,13 +121,7 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
         lastScrobbled: 0
     })
 
-    console.log("Channel started:", channelId);
-    console.log("Active channels:", 
-        [...activeChannels.entries()].map(([id, channel]) => ({
-            channelId: id,
-            listeners: channel.activeUsers.size
-        }))
-    );
+    //debugLog("Channel started:", channelId);
 
     res.json({ 
         success: true,
@@ -147,7 +153,7 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
 
     if(channel.activeUsers.size === 0){
         activeChannels.delete(channelId);
-        console.log('Channel removed:', channelId);
+        //debugLog('Channel removed:', channelId);
     }
 
     res.json({ success: true });
@@ -208,20 +214,37 @@ app.get('/auth/callback', async (req, res) => {
     res.redirect('/');
 })
 
-// Route: /scrobble
-// Sends track data to Last.fm for scrobbling
-app.post('/scrobble', requireAuth, async (req, res) => {
-    if(!req.session.sessionKey){
-        return res.status(401).json({ error: 'Not logged in' });
+// Route: /debug/state
+// Sends information about server state for debugging purposes
+app.get('/debug/state', (req, res) => {
+    if(
+        process.env.NODE_ENV != 'test' &&
+        process.env.NODE_ENV != 'dev'
+    ){
+        return res.status(404).end();
     }
 
-    const { artist, track } = req.body;
-    const data = await scrobbleTrack({
-        artist,
-        track,
-        sessionKey: req.session.sessionKey
-    });
-    res.json(data);
+    const snapshot = {};
+
+    for(const [channelId, channel] of activeChannels){
+        snapshot[channelId] = {
+            channelId: channelId,
+            listenerCount: channel.activeUsers.size,
+            lastTrack: channel.recentTracks[0],
+            listeners: Array.from(channel.activeUsers.entries()).map(
+                ([sessionKey, user]) => ({
+                    sessionKey,
+                    ...user
+                })
+            )
+        };
+    }
+
+    const sortedSnapshot = Object.fromEntries(
+        Object.entries(snapshot).sort(([a], [b]) => a.localeCompare(b))
+    );
+
+    res.json(sortedSnapshot);
 })
 
 ////
@@ -233,12 +256,12 @@ app.post('/scrobble', requireAuth, async (req, res) => {
 async function startServer(){
     try{
         channels = await fetchChannels();
-        console.log(`Loaded ${channels.size} channels`);
+        debugLog(`Loaded ${channels.size} channels`);
 
         setInterval(async () => {
             try{
                 channels = await fetchChannels();
-                console.log(`Channel list refreshed, loaded ${channels.size} channels`);
+                debugLog(`Channel list refreshed, loaded ${channels.size} channels`);
             }
             catch(err){
                 console.error('Failed to refresh channels:', err);
@@ -246,7 +269,7 @@ async function startServer(){
         }, 60 * 60 * 1000);
 
         app.listen(3000, () => {
-            console.log('Server running at http://localhost:3000');
+            debugLog('Server running at http://localhost:3000');
             startPolling();
         });
     }

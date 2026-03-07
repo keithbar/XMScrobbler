@@ -1,31 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Manual Scrobble Test</title>
+  <title>XM Scrobbler</title>
 </head>
 <body>
-  <h1>Test Scrobble</h1>
+  <h1>Scrobble from selected XM station.</h1>
 
   <h2 id="authStatus">Not logged in.</h2>
   <button id="loginBtn">Login with Last.fm</button>
-
-  <br><br>
-
-  <form id="scrobbleForm" style="display: none;">
-    <label>
-      Artist:
-      <input type="text" id="artist" required />
-    </label>
-    <br><br>
-
-    <label>
-      Track:
-      <input type="text" id="track" required />
-    </label>
-    <br><br>
-
-    <button type="submit">Submit</button>
-  </form>
 
   <br><br>
 
@@ -52,7 +34,6 @@
     // Elements
     const authStatus = document.getElementById('authStatus');
     const loginBtn = document.getElementById('loginBtn');
-    const manualScrobbleForm = document.getElementById('scrobbleForm');
     const channelControls = document.getElementById('channelControls');
     const channelSelect = document.getElementById('channelSelect');
     const channelTimeout = document.getElementById('channelTimeout');
@@ -65,25 +46,6 @@
     // Functions
     async function init(){
       await checkAuth();
-
-      manualScrobbleForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const artist = document.getElementById('artist').value;
-        const track = document.getElementById('track').value;
-
-        const response = await fetch('/scrobble', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ artist, track })
-        });
-
-        const data = await response.json();
-        console.log(data);
-        alert('Submitted! Check server console.');
-      });
 
       channelBtn.addEventListener('click', async () => {
         const channelId = channelSelect.value;
@@ -174,7 +136,6 @@
         loginBtn.textContent = 'Logout';
         loginBtn.onclick = handleLogout;
         channelControls.style.display = 'block';
-        manualScrobbleForm.style.display = 'block';
 
         await loadChannels();
         await loadScrobbleStatus();
@@ -184,7 +145,6 @@
         loginBtn.textContent = 'Login with Last.fm';
         loginBtn.onclick = handleLogin;
         channelControls.style.display = 'none';
-        manualScrobbleForm.style.display = 'none';
       }
     }
 

@@ -1,6 +1,7 @@
 const { sleep } = require('../utils/sleep');
 const { fetchRecentTracks } = require('./xmplaylistService');
 const { scrobbleTrack } = require('./lastfmService');
+const { debugLog } = require('../utils/logger');
 
 const RATE_LIMIT_DELAY = 2.1;
 const MIN_POLL_INTERVAL = 2 * 60;
@@ -8,25 +9,24 @@ const MIN_POLL_INTERVAL = 2 * 60;
 const activeChannels = new Map();
 // key: channelId
 // value: { 
-//   lastPolled,
 //   recentTracks: [{
 //     title,
 //     artist,
 //     timestamp
 //   }],
-//   activeUsers: [{
-//     startedAt,
-//     stopAt,
-//     lastScrobbled
-//   }]
+//   activeUsers: Map()
+//     key: userSessionKey,
+//     value: {
+//       startedAt,
+//       stopAt,
+//       lastScrobbled
+//     }
 // }
 
 let lastPolled = 0;
 
 async function pollLoop(){
     while(true){
-        //console.log(`Polling ${activeChannels.size} channels...`);
-
         const now = Date.now() / 1000;
         if(activeChannels.size === 0 ||
                 now < lastPolled + MIN_POLL_INTERVAL){
@@ -46,12 +46,17 @@ async function pollLoop(){
         }
 
         lastPolled = now;
+
+        // debugLog("Active channels:", 
+        //     [...activeChannels.entries()].map(([id, channel]) => ({
+        //         channelId: id,
+        //         listeners: channel.activeUsers.size
+        //     }))
+        // );
     }
 }
 
 async function pollChannel(channelId){
-    //console.log(`Polling channel: ${channelId}`);
-    
     const channel = activeChannels.get(channelId);
     const tracks = await fetchRecentTracks(channelId);
 
@@ -61,7 +66,7 @@ async function pollChannel(channelId){
 
     for(const [userSessionKey, userState] of channel.activeUsers){
         if(now >= userState.stopAt){
-            console.log(`Auto stopping user ${userSessionKey}`);
+            debugLog(`Auto stopping user ${userSessionKey}`);
             channel.activeUsers.delete(userSessionKey);
             continue;
         }
@@ -69,14 +74,14 @@ async function pollChannel(channelId){
         const newTracks = tracks.filter(track => 
             track.timestamp > (userState.startedAt - 60) &&
                 track.timestamp > userState.lastScrobbled
-        ); //console.log(`Retrieved ${Object.keys(newTracks).length} new tracks`);
+        );
 
         newTracks.sort((a, b) => a.timestamp - b.timestamp);
 
         for(const track of newTracks){
             try{
                 await scrobbleTrack(userSessionKey, track);
-                console.log(`Scrobbling track: ${track.title}`);
+                debugLog(`Scrobbling track: ${track.title} for ${userSessionKey}`);
                 userState.lastScrobbled = track.timestamp;
             }
             catch(err){
@@ -88,12 +93,12 @@ async function pollChannel(channelId){
 
     if(channel.activeUsers.size === 0){
         activeChannels.delete(channelId);
-        console.log('Channel removed:', channelId);
+        //debugLog('Channel removed:', channelId);
     }
 }
 
 async function startPolling(){
-    console.log('Begin polling...');
+    debugLog('Begin polling...');
     pollLoop();
 }
 
