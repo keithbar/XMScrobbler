@@ -6,10 +6,10 @@ const session = require('express-session');
 
 const { getSession, scrobbleTrack } = require('./services/lastfmService');
 const { fetchChannels } = require('./services/xmplaylistService');
-const { activeChannels, startPolling } = require('./services/pollingService');
+const { startPolling } = require('./services/pollingService');
+const { activeChannels } = require('./services/state');
 const { debugLog } = require('./utils/logger');
-
-let channels = null;
+const { sleep } = require('./utils/sleep');
 
 const app = express();
 
@@ -53,9 +53,10 @@ function requireAuth(req, res, next){
 // Response contains the currently available XM stations
 app.get('/api/channels', (req, res) => {
     res.json(
-        [...channels.entries()].map(([deeplink, info]) => ({
+        [...activeChannels.entries()].map(([deeplink, info]) => ({
             deeplink,
-            ...info
+            number: info.channelNumber,
+            name: info.channelName
         }))
     );
 });
@@ -86,17 +87,13 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'channelId required' });
     }
 
-    if(!channels.has(channelId)){
+    if(!activeChannels.has(channelId)){
         return res.status(400).json({ error: 'Invalid channelId' });
     }
 
     for(const [id, channel] of activeChannels){
         if(channel.activeUsers.has(sessionKey)){
             channel.activeUsers.delete(sessionKey);
-
-            if(channel.activeUsers.size === 0){
-                activeChannels.delete(id);
-            }
         }
     }
 
@@ -109,16 +106,6 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const stopAt = now + (timeoutHours * 3600);
 
     let channel = activeChannels.get(channelId);
-
-    if(!channel){
-        channel = {
-            lastPolled: 0,
-            recentTracks: [],
-            activeUsers: new Map()
-        };
-
-        activeChannels.set(channelId, channel);
-    }
 
     channel.activeUsers.set(sessionKey, {
         startedAt: now,
@@ -144,22 +131,13 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
         return res.status(400).json({ error: 'channelId required' });
     }
 
-    if(!channels.has(channelId)){
+    if(!activeChannels.has(channelId)){
         return res.status(400).json({ error: 'Invalid channelId' });
     }
 
     const channel = activeChannels.get(channelId);
 
-    if(!channel){
-        return res.json({ success: true });
-    }
-
     channel.activeUsers.delete(sessionKey);
-
-    if(channel.activeUsers.size === 0){
-        activeChannels.delete(channelId);
-        //debugLog('Channel removed:', channelId);
-    }
 
     res.json({ success: true });
 })
@@ -209,11 +187,16 @@ app.post('/auth/logout', (req, res) => {
 // Callback URL used by Last.fm after authentication
 app.get('/auth/callback', async (req, res) => {
     const { token } = req.query;
-    const data = await getSession(token);
+    try{
+        const data = await getSession(token);
 
-    if(data.session){
-        req.session.username = data.session.name;
-        req.session.sessionKey = data.session.key;
+        if(data.session){
+            req.session.username = data.session.name;
+            req.session.sessionKey = data.session.key;
+        }
+    }
+    catch(err){
+        console.error('Failed to authenticate with Last.fm.', err);
     }
 
     res.redirect('/');
@@ -259,45 +242,51 @@ app.get('/debug/state', (req, res) => {
 // Application entry point
 // Runs startup logic, then begins listening for requests
 async function startServer(){
-    try{
-        channels = await fetchChannels();
-        debugLog(`Loaded ${channels.size} channels`);
+    let delay = 10;
+    const maxDelay = 5 * 60;
 
-        setInterval(async () => {
-            try{
-                channels = await fetchChannels();
-                debugLog(`Channel list refreshed, loaded ${channels.size} channels`);
-            }
-            catch(err){
-                console.error('Failed to refresh channels:', err);
-            }
-        }, 60 * 60 * 1000);
+    while(true){
+        try{
+            await fetchChannels();
+            debugLog(`Loaded ${activeChannels.size} channels`);
 
-        app.listen(3000, () => {
-            debugLog('Server running at http://localhost:3000');
-            startPolling();
-        });
+            setInterval(async () => {
+                try{
+                    await fetchChannels();
+                    debugLog(`Channel list refreshed, loaded ${activeChannels.size} channels`);
+                }
+                catch(err){
+                    console.error('Failed to refresh channels:', err);
+                }
+            }, 60 * 60 * 1000);
 
-        // memory monitor
-        setInterval(() => {
-            const m = process.memoryUsage();
+            return app.listen(3000, () => {
+                debugLog('Server running at http://localhost:3000');
+                startPolling();
+            });
 
-            let users = 0;
-            for(const ch of activeChannels.values()){
-                users += ch.activeUsers.size;
-            }
+            // memory monitor
+            // setInterval(() => {
+            //     const m = process.memoryUsage();
 
-            console.log(
-                `Users: ${users}` +
-                `[MEM] heapUsed=${Math.round(m.heapUsed/1024/1024)}MB ` +
-                `heapTotal=${Math.round(m.heapTotal/1024/1024)}MB ` +
-                `rss=${Math.round(m.rss/1024/1024)}MB`
-            );
-        }, 60 * 1000);
-    }
-    catch(err){
-        console.error('Startup failed:', err);
-        process.exit(1);
+            //     let users = 0;
+            //     for(const ch of activeChannels.values()){
+            //         users += ch.activeUsers.size;
+            //     }
+
+            //     console.log(
+            //         `Users: ${users}` +
+            //         `[MEM] heapUsed=${Math.round(m.heapUsed/1024/1024)}MB ` +
+            //         `heapTotal=${Math.round(m.heapTotal/1024/1024)}MB ` +
+            //         `rss=${Math.round(m.rss/1024/1024)}MB`
+            //     );
+            // }, 60 * 1000);
+        }
+        catch(err){
+            console.error(`Startup failed, retrying in ${delay} seconds:`, err);
+            await sleep(delay);
+            delay = Math.min(delay * 2, maxDelay);
+        }
     }
 }
 
