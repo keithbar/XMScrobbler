@@ -4,7 +4,7 @@ const BASE_URL = 'http://localhost:3000';
 
 const USER_COUNT = 100000;
 const ACTION_INTERVAL = 15;
-const USER_LOGIN_INTERVAL = 0.025;
+const USER_LOGIN_INTERVAL = .002;
 
 let channels = [];
 

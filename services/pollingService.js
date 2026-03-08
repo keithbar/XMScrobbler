@@ -64,24 +64,22 @@ async function pollChannel(channelId){
 
     const now = Math.floor(Date.now() / 1000);
 
+    tracks.sort((a, b) => a.timestamp - b.timestamp);
+
     for(const [userSessionKey, userState] of channel.activeUsers){
         if(now >= userState.stopAt){
-            debugLog(`Auto stopping user ${userSessionKey}`);
+            //debugLog(`Auto stopping user ${userSessionKey}`);
             channel.activeUsers.delete(userSessionKey);
             continue;
         }
-
-        const newTracks = tracks.filter(track => 
-            track.timestamp > (userState.startedAt - 60) &&
-                track.timestamp > userState.lastScrobbled
-        );
-
-        newTracks.sort((a, b) => a.timestamp - b.timestamp);
-
-        for(const track of newTracks){
+        
+        for(const track of tracks){
+            if(track.timestamp <= (userState.startedAt - 60)) continue;
+            if(track.timestamp <= userState.lastScrobbled) continue;
+            
             try{
                 await scrobbleTrack(userSessionKey, track);
-                debugLog(`Scrobbling track: ${track.title} for ${userSessionKey}`);
+                //debugLog(`Scrobbling track: ${track.title} for ${userSessionKey}`);
                 userState.lastScrobbled = track.timestamp;
             }
             catch(err){

@@ -23,15 +23,19 @@ app.use(session({
 }));
 
 function requireAuth(req, res, next){
-    if(process.env.NODE_ENV === 'test'){
-        if(!req.session){
-            req.session = {};
-        }
+    // if(process.env.NODE_ENV === 'test'){
+    //     if(!req.session){
+    //         req.session = {};
+    //     }
 
-        if(req.headers['x-test-user']){
-            req.session.username = req.headers['x-test-user'];
-            req.session.sessionKey = req.headers['x-test-user'];
-        }
+    //     if(req.headers['x-test-user']){
+    //         req.session.username = req.headers['x-test-user'];
+    //         req.session.sessionKey = req.headers['x-test-user'];
+    //     }
+    // }
+    if(process.env.NODE_ENV === 'test' && req.headers['x-test-user']){
+        req.sessionKey = req.headers['x-test-user'];
+        return next();
     }
 
     if(!req.session || !req.session.username){
@@ -75,7 +79,8 @@ app.get('/api/auth-status', (req, res) => {
 // Begin scrobbling a specific station for a user
 app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const { channelId } = req.body;
-    const sessionKey = req.session.sessionKey;
+
+    const sessionKey = req.sessionKey ?? req.session.sessionKey;
 
     if(!channelId){
         return res.status(400).json({ error: 'channelId required' });
@@ -133,7 +138,7 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
 // Stop scrobbling a specified station for a user
 app.post('/api/scrobble/stop', requireAuth, (req, res) => {
     const { channelId } = req.body;
-    const sessionKey = req.session.sessionKey;
+    const sessionKey = req.sessionKey ?? req.session.sessionKey;
 
     if(!channelId){
         return res.status(400).json({ error: 'channelId required' });
@@ -162,7 +167,7 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
 // Route: /api/scrobble/status
 // Return the current user's scrobbling status to the frontend.
 app.get('/api/scrobble/status', requireAuth, (req, res) => {
-    const sessionKey = req.session.sessionKey;
+    const sessionKey = req.sessionKey ?? req.session.sessionKey;
     
     for(const [channelId, channel] of activeChannels){
         const userState = channel.activeUsers.get(sessionKey);
@@ -272,6 +277,23 @@ async function startServer(){
             debugLog('Server running at http://localhost:3000');
             startPolling();
         });
+
+        // memory monitor
+        setInterval(() => {
+            const m = process.memoryUsage();
+
+            let users = 0;
+            for(const ch of activeChannels.values()){
+                users += ch.activeUsers.size;
+            }
+
+            console.log(
+                `Users: ${users}` +
+                `[MEM] heapUsed=${Math.round(m.heapUsed/1024/1024)}MB ` +
+                `heapTotal=${Math.round(m.heapTotal/1024/1024)}MB ` +
+                `rss=${Math.round(m.rss/1024/1024)}MB`
+            );
+        }, 60 * 1000);
     }
     catch(err){
         console.error('Startup failed:', err);
