@@ -2,9 +2,9 @@ const { sleep } = require('../utils/sleep');
 
 const BASE_URL = 'http://localhost:3000';
 
-const USER_COUNT = 100000;
+const USER_COUNT = 100;
 const ACTION_INTERVAL = 15;
-const USER_LOGIN_INTERVAL = .002;
+const USER_LOGIN_INTERVAL = 0.25;
 
 let channels = [];
 
@@ -62,7 +62,7 @@ async function simulateUser(userId){
                 currentChannel = channel.deeplink;
             }
             else{
-                console.log(`User ${userId} idle`);
+               console.log(`User ${userId} idle`);
             }
         }
         else{
@@ -79,8 +79,6 @@ async function simulateUser(userId){
                 console.log(`User ${userId} listening to ${currentChannel}`);
             }
         }
-
-        
 
         await sleep(ACTION_INTERVAL + Math.random() * 5);
     }

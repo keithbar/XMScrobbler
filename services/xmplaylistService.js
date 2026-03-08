@@ -1,4 +1,4 @@
-const { activeChannels } = require('./state');
+const { activeChannels, logXmpApiCall } = require('./state');
 
 const BASE_URL = 'https://xmplaylist.com/api';
 
@@ -11,7 +11,7 @@ async function fetchChannels(){
     });
     if(!response.ok){
         throw new Error(`${response.status}: ${response.statusText}`);
-    }
+    } logXmpApiCall('/station');
     const data = await response.json();
 
     for(const channel of data.results){
@@ -29,28 +29,7 @@ async function fetchChannels(){
             });
         }
     }
-
-    // old method
-    // return new Map(
-    //     data.results.map(channel => [
-    //         channel.deeplink,
-    //         {
-    //             number: channel.number,
-    //             name: channel.name
-    //         }
-    //     ])
-    // );
 }
-
-// old method
-// async function fetchRecentTracks(channelId){
-//     const response = await fetch(`${BASE_URL}/station/${channelId}`);
-//     if(!response.ok){
-//         throw new Error(`${response.status}: ${response.statusText}`);
-//     }
-//     const data = await response.json();
-//     return data.results.slice(0, 5).map(normalizeTrack);
-// }
 
 async function fetchRecentTracks(){
     const response = await fetch(`${BASE_URL}/feed`, {
@@ -61,7 +40,7 @@ async function fetchRecentTracks(){
     });
     if(!response.ok){
         throw new Error(`${response.status}: ${response.statusText}`);
-    }
+    } logXmpApiCall('/feed');
     const data = await response.json();
 
     const tracks = data.results.map(normalizeTrack);

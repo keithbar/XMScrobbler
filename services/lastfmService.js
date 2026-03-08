@@ -1,4 +1,5 @@
 const { createSignature } = require('../utils/signature');
+const { logLastfmApiCall } = require('./state');
 
 const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
 
@@ -53,7 +54,7 @@ async function scrobbleTrack(userSessionKey, track){
             api_sig,
             format: 'json'
         })
-    });
+    }); logLastfmApiCall();
 
     return response.json();
 }

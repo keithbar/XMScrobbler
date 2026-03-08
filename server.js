@@ -7,7 +7,7 @@ const session = require('express-session');
 const { getSession, scrobbleTrack } = require('./services/lastfmService');
 const { fetchChannels } = require('./services/xmplaylistService');
 const { startPolling } = require('./services/pollingService');
-const { activeChannels } = require('./services/state');
+const { activeChannels, getTotalUsers } = require('./services/state');
 const { debugLog } = require('./utils/logger');
 const { sleep } = require('./utils/sleep');
 
@@ -196,7 +196,7 @@ app.get('/auth/callback', async (req, res) => {
         }
     }
     catch(err){
-        console.error('Failed to authenticate with Last.fm.', err);
+        debugLog('error', 'Failed to authenticate with Last.fm.', err);
     }
 
     res.redirect('/');
@@ -248,42 +248,41 @@ async function startServer(){
     while(true){
         try{
             await fetchChannels();
-            debugLog(`Loaded ${activeChannels.size} channels`);
+            debugLog('state', `Loaded ${activeChannels.size} channels`);
 
             setInterval(async () => {
                 try{
                     await fetchChannels();
-                    debugLog(`Channel list refreshed, loaded ${activeChannels.size} channels`);
+                    debugLog('state',
+                        `Channel list refreshed, loaded ${activeChannels.size} channels`
+                    );
                 }
                 catch(err){
-                    console.error('Failed to refresh channels:', err);
+                    debugLog('error', 'Failed to refresh channels:', err);
                 }
             }, 60 * 60 * 1000);
 
+            // memory monitor
+            setInterval(() => {
+                const m = process.memoryUsage();
+
+                debugLog('memory',
+                    `Users: ${getTotalUsers()} ` +
+                    `[MEM] heapUsed=${Math.round(m.heapUsed/1024/1024)}MB ` +
+                    `heapTotal=${Math.round(m.heapTotal/1024/1024)}MB ` +
+                    `rss=${Math.round(m.rss/1024/1024)}MB`
+                );
+            }, 60 * 1000);
+
             return app.listen(3000, () => {
-                debugLog('Server running at http://localhost:3000');
+                debugLog('state', 'Server running at http://localhost:3000');
                 startPolling();
             });
 
-            // memory monitor
-            // setInterval(() => {
-            //     const m = process.memoryUsage();
-
-            //     let users = 0;
-            //     for(const ch of activeChannels.values()){
-            //         users += ch.activeUsers.size;
-            //     }
-
-            //     console.log(
-            //         `Users: ${users}` +
-            //         `[MEM] heapUsed=${Math.round(m.heapUsed/1024/1024)}MB ` +
-            //         `heapTotal=${Math.round(m.heapTotal/1024/1024)}MB ` +
-            //         `rss=${Math.round(m.rss/1024/1024)}MB`
-            //     );
-            // }, 60 * 1000);
+            
         }
         catch(err){
-            console.error(`Startup failed, retrying in ${delay} seconds:`, err);
+            debugLog('error', `Startup failed, retrying in ${delay} seconds:`, err);
             await sleep(delay);
             delay = Math.min(delay * 2, maxDelay);
         }
