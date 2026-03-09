@@ -159,7 +159,6 @@ app.get('/api/scrobble/status', requireAuth, (req, res) => {
 app.get('/auth/login', (req, res) => {
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const callbackUrl = `${baseUrl}/auth/callback`;
-    console.log(callbackUrl);
     const authUrl = 
         `https://www.last.fm/api/auth/?api_key=${process.env.LASTFM_API_KEY}&cb=${callbackUrl}`;
     res.redirect(authUrl);
