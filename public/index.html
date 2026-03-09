@@ -13,13 +13,15 @@
     <div class="card">
       <h1>Scrobble from selected XM station.</h1>
 
-      <h2 id="authStatus">Not logged in.</h2>
+      <a id="authStatus">Not logged in.</a>
       <button id="loginBtn">Login with Last.fm</button>
 
       <br><br>
 
       <div id="channelControls" style="display: none;">
+        <label for="channelSelect">Select a station:</label>
         <select id="channelSelect"></select>
+        <br><br>
         <label for="channelTimeout">Auto stop after:</label>
         <select id="channelTimeout">
           <option value="1">1 hour</option>

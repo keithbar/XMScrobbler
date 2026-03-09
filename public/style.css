@@ -137,9 +137,21 @@ body::after {
 }
 
 #authStatus {
-  font-size: 0.8rem;
+  display: block;
+  font-size: 1em;
   color: var(--text-secondary);
   letter-spacing: 0.02em;
+  margin-top: 0.5em;
+  margin-bottom: 1em;
+}
+
+#authStatus[href] {
+  color: var(--success);
+  text-decoration: none;
+}
+
+#authStatus[href]:hover {
+  text-decoration: underline;
 }
 
 #authStatus.logged-in {
@@ -147,8 +159,8 @@ body::after {
 }
 
 #authStatus.logged-in::before {
-  content: '● ';
-  font-size: 0.6rem;
+  content: '▸ ';
+  font-size: 1em;
 }
 
 /* Buttons */

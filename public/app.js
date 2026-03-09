@@ -105,6 +105,8 @@ async function checkAuth(){
 
     if(data.loggedIn){
         authStatus.textContent = `Logged in as ${data.username}`;
+        authStatus.href = `https://www.last.fm/user/${data.username}`;
+        authStatus.target = '_blank';
         authStatus.classList.add('logged-in');
         loginBtn.textContent = 'Logout';
         loginBtn.onclick = handleLogout;
@@ -115,6 +117,8 @@ async function checkAuth(){
     }
     else{
         authStatus.textContent = 'Not logged in.';
+        authStatus.removeAttribute('href');
+        authStatus.removeAttribute('target');
         authStatus.classList.remove('logged-in');
         loginBtn.textContent = 'Login with Last.fm';
         loginBtn.onclick = handleLogin;

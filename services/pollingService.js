@@ -37,10 +37,10 @@ async function pollLoop(){
         }
 
         for(const [channelId, channel] of activeChannels){
-            for(const [userSessionKey, userState] of channel.activeUsers){
+            for(const [username, userState] of channel.activeUsers){
                 if(now >= userState.stopAt){
                     //debugLog(`Auto stopping user ${userSessionKey}`);
-                    channel.activeUsers.delete(userSessionKey);
+                    channel.activeUsers.delete(username);
                     continue;
                 }
                 
@@ -49,9 +49,9 @@ async function pollLoop(){
                     if(track.timestamp <= userState.lastScrobbled) continue;
                     
                     try{
-                        await scrobbleTrack(userSessionKey, track);
+                        await scrobbleTrack(userState.sessionKey, track);
                         debugLog('scrobble', 
-                            `Scrobbling track: ${track.title} (${channelId}) for ${userSessionKey}`
+                            `Scrobbling track: ${track.title} (${channelId}) for ${username}`
                         );
                         userState.lastScrobbled = track.timestamp;
                     }

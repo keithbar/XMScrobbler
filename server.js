@@ -23,18 +23,8 @@ app.use(session({
 }));
 
 function requireAuth(req, res, next){
-    // if(process.env.NODE_ENV === 'test'){
-    //     if(!req.session){
-    //         req.session = {};
-    //     }
-
-    //     if(req.headers['x-test-user']){
-    //         req.session.username = req.headers['x-test-user'];
-    //         req.session.sessionKey = req.headers['x-test-user'];
-    //     }
-    // }
     if(process.env.NODE_ENV === 'test' && req.headers['x-test-user']){
-        req.sessionKey = req.headers['x-test-user'];
+        req.username = req.headers['x-test-user'];
         return next();
     }
 
@@ -81,7 +71,8 @@ app.get('/api/auth-status', (req, res) => {
 app.post('/api/scrobble/start', requireAuth, (req, res) => {
     const { channelId } = req.body;
 
-    const sessionKey = req.sessionKey ?? req.session.sessionKey;
+    const sessionKey = req.session.sessionKey;
+    const username = req.username ?? req.session.username;
 
     if(!channelId){
         return res.status(400).json({ error: 'channelId required' });
@@ -92,8 +83,8 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
     }
 
     for(const [id, channel] of activeChannels){
-        if(channel.activeUsers.has(sessionKey)){
-            channel.activeUsers.delete(sessionKey);
+        if(channel.activeUsers.has(username)){
+            channel.activeUsers.delete(username);
         }
     }
 
@@ -107,10 +98,11 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
 
     let channel = activeChannels.get(channelId);
 
-    channel.activeUsers.set(sessionKey, {
+    channel.activeUsers.set(username, {
         startedAt: now,
         stopAt: stopAt,
-        lastScrobbled: 0
+        lastScrobbled: 0,
+        sessionKey: sessionKey
     })
 
     //debugLog("Channel started:", channelId);
@@ -125,7 +117,8 @@ app.post('/api/scrobble/start', requireAuth, (req, res) => {
 // Stop scrobbling a specified station for a user
 app.post('/api/scrobble/stop', requireAuth, (req, res) => {
     const { channelId } = req.body;
-    const sessionKey = req.sessionKey ?? req.session.sessionKey;
+    
+    const username = req.username ?? req.session.username;
 
     if(!channelId){
         return res.status(400).json({ error: 'channelId required' });
@@ -137,7 +130,7 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
 
     const channel = activeChannels.get(channelId);
 
-    channel.activeUsers.delete(sessionKey);
+    channel.activeUsers.delete(username);
 
     res.json({ success: true });
 })
@@ -145,10 +138,10 @@ app.post('/api/scrobble/stop', requireAuth, (req, res) => {
 // Route: /api/scrobble/status
 // Return the current user's scrobbling status to the frontend.
 app.get('/api/scrobble/status', requireAuth, (req, res) => {
-    const sessionKey = req.sessionKey ?? req.session.sessionKey;
+    const username = req.username ?? req.session.username;
     
     for(const [channelId, channel] of activeChannels){
-        const userState = channel.activeUsers.get(sessionKey);
+        const userState = channel.activeUsers.get(username);
         if(userState){
             return res.json({
                 active: true,
@@ -220,8 +213,8 @@ app.get('/debug/state', (req, res) => {
             listenerCount: channel.activeUsers.size,
             lastTrack: channel.recentTracks[0],
             listeners: Array.from(channel.activeUsers.entries()).map(
-                ([sessionKey, user]) => ({
-                    sessionKey,
+                ([username, user]) => ({
+                    username,
                     ...user
                 })
             )
@@ -279,7 +272,6 @@ async function startServer(){
                 startPolling();
             });
 
-            
         }
         catch(err){
             debugLog('error', `Startup failed, retrying in ${delay} seconds:`, err);
