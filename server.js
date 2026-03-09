@@ -157,7 +157,9 @@ app.get('/api/scrobble/status', requireAuth, (req, res) => {
 // Route: /auth/login
 // Redirect to Last.fm for user authentication
 app.get('/auth/login', (req, res) => {
-    const callbackUrl = 'http://localhost:3000/auth/callback';
+    const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+    const callbackUrl = `${baseUrl}/auth/callback`;
+    console.log(callbackUrl);
     const authUrl = 
         `https://www.last.fm/api/auth/?api_key=${process.env.LASTFM_API_KEY}&cb=${callbackUrl}`;
     res.redirect(authUrl);
@@ -268,7 +270,7 @@ async function startServer(){
             }, 60 * 1000);
 
             return app.listen(3000, () => {
-                debugLog('state', 'Server running at http://localhost:3000');
+                debugLog('state', `Server running on port 3000`);
                 startPolling();
             });
 

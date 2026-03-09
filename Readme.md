@@ -67,6 +67,7 @@ Create a `.env` file in the project root with the following values:
 | `LASTFM_API_KEY` | Your Last.fm API key |
 | `LASTFM_API_SECRET` | Your Last.fm API secret |
 | `SESSION_SECRET` | A long, random string used to sign session cookies |
+| `BASE_URL` | URL of the app. If running locally, can be left blank |
 
 A `.env.example` file is included in the repository as a reference.
 
